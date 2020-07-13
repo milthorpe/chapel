@@ -39,6 +39,7 @@
 #include "virtualDispatch.h"
 #include "WhileStmt.h"
 #include "wellknown.h"
+#include "stdio.h"
 
 #ifdef HAVE_LLVM
 #include "llvm/IR/Module.h"
@@ -56,6 +57,8 @@
 #include <cstring>
 #include <ostream>
 #include <stack>
+
+#include <iostream>
 
 class FnSymbol;
 
@@ -623,6 +626,25 @@ llvm::LoadInst* codegenLoadLLVM(GenRet ptr,
 }
 
 #endif
+
+static
+GenRet codegenIsGPUSublocale(void)
+{
+  GenRet ret(0);
+  // codegenCallExpr("chpl_gen_isGPUSublocale");
+  // ret.chplType = dtBool;
+#ifdef HAVE_LLVM
+  GenInfo* info = gGenInfo;
+  if (!info->cfile ) {
+    // Make sure that the result of gen_getLocaleID is
+    // the right type (since clang likes to fold int32/int32 into int32).
+    GenRet expectType = dtBool;
+    ret.val = convertValueToType(ret.val, expectType.type);
+    assert(ret.val);
+  }
+#endif
+  return ret;
+}
 
 static
 GenRet codegenUseGlobal(const char* global)
@@ -5269,6 +5291,14 @@ DEFINE_PRIM(PRIM_LOOKUP_FILENAME) {
     ret = call->codegenBasicPrimitiveExpr();
 }
 
+// DEFINE_PRIM(PRIM_IS_GPU){
+//     ret = codegenIsGPUSublocale();
+// }
+
+// DEFINE_PRIM(PRIM_GPU_REDUCE){
+    
+// }
+
 DEFINE_PRIM(PRIM_INVARIANT_START) {
 
   GenInfo* info = gGenInfo;
@@ -5411,8 +5441,34 @@ GenRet CallExpr::codegenPrimitive() {
   } else if (codegenFn != NULL) {
     // use a registered DEFINE_PRIM function from above
     codegenFn(this, ret);
+  } else if (tag == PRIM_IS_GPU){
+    ret = codegenIsGPUSublocale();
+  } else if (tag == PRIM_GPU_REDUCE ){
+    Type *data_type = this->get(1)->typeInfo();
+      /*FIXME: After gpu kernels for all possible reductions have
+      * been implemented, remove this conditional.
+      */
+    if (is_int_type(data_type)) {
+      ret = GenRet(1);
+      // std::string reduce_fn = "gpu_reduce_int" +
+      //   numToString(get_width(data_type));
+      // SymExpr* actual = toSymExpr(this->get(2));
+      // VarSymbol* var_op = toVarSymbol(actual->symbol());
+      // VarSymbol* var_src = toVarSymbol(toSymExpr(this->get(3))->symbol());
+      // VarSymbol* var_len = toVarSymbol(toSymExpr(this->get(4))->symbol());
+      // INT_ASSERT(var_op != NULL);
+      // INT_ASSERT(var_src != NULL);
+      // ret = codegenCallExpr(reduce_fn.c_str(),
+      //                           var_op,
+      //                           var_src,
+      //                           var_len);
+    } else {
+      INT_FATAL(data_type, "gpu reduction not implemented for given "
+                          "element type");
+    }
   } else {
     // otherwise, error
+    std :: cout << "Primitive is: " << tag << std::endl;
     INT_FATAL(this, "primitive codegen fail; should it still be in the AST?");
 
     if (gGenInfo->cfile) {
@@ -5465,8 +5521,7 @@ GenRet CallExpr::codegenPrimMove() {
         codegenStoreLLVM(specRet, get(1));
 #endif
       }
-    }
-    else {
+    } else {
       codegenAssign(get(1), specRet);
     }
 
