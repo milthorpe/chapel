@@ -38,6 +38,7 @@
 #include "log.h"
 #include "LoopExpr.h"
 #include "ParamForLoop.h"
+#include "ResolutionCandidate.h"
 #include "stlUtil.h"
 #include "stmt.h"
 #include "stringutil.h"
@@ -870,14 +871,17 @@ Expr* debugParentExpr(BaseAST* ast) {
   else if (Expr* expr = toExpr(ast))
     return expr->parentExpr;
   else if (Symbol* sym = toSymbol(ast))
-    return sym->defPoint->parentExpr;
+    return sym->defPoint ? sym->defPoint->parentExpr : NULL;
   else {
     printf("<debugParentExpr: node %d is neither Expr nor Symbol>\n", ast->id);
     return NULL;
   }
 }
 
-// print minimal information about each statement in the block
+//
+// blockSummary: print minimal information about each statement in the block
+//
+
 void blockSummary(int id) {
   if (BaseAST* ast = aid09(id))
     blockSummary(ast);
@@ -945,10 +949,10 @@ void blockSummary(BlockStmt* block, Symbol* sym) {
     summarySymbolPrint(sym, "in ", "\n");
 }
 
-
 //
 // map_view: print the contents of a SymbolMap
 //
+
 void map_view(SymbolMap* map) {
   map_view(*map);
 }
@@ -985,13 +989,12 @@ void map_view(SymbolMap& map) {
   log_need_space = temp_log_need_space;
 }
 
-
 //
-// vec_view: print the contents of a Vec.
+// vec_view: print the contents of a Vec or a std::vector
 //
 
 static void showFnSymbol(FnSymbol* fn) {
-        printf("  %d  %c%c  %s\n", fn->id,
+        printf("  %8d  %c%c  %s\n", fn->id,
                // "g"eneric, "r"esolved, "G"eneric+resolved, " " - neither
                fn->isResolved() ? (fn->isKnownToBeGeneric() ? 'G' : 'r') :
                                   (fn->isKnownToBeGeneric() ? 'g' : ' ') ,
@@ -1061,9 +1064,100 @@ void vec_view(std::vector<FnSymbol*>& syms) {
   }
 }
 
+static void showBlock(BlockStmt* block) {
+  printf("  %8d  %s", block->id, debugLoc(block));
+  if (FnSymbol* sym = toFnSymbol(block->parentSymbol)) {
+    const char* msg = NULL;
+    if      (block == sym->body)                msg = "body";
+    else if (block == sym->where)               msg = "where";
+    else if (block == sym->lifetimeConstraints) msg = "lifetimeConstraints";
+    else if (block == sym->retExprType)         msg = "retExprType";
+    if (msg != NULL)
+      printf("  fn %s[%d] %s", sym->name, sym->id, msg);
+  } else if (ModuleSymbol* sym = toModuleSymbol(block->parentSymbol)) {
+    if (block == sym->block)
+      printf("  module %s[%d] %s", sym->name, sym->id, "body");
+  } else if (ArgSymbol* sym = toArgSymbol(block->parentSymbol)) {
+    const char* msg = NULL;
+    if      (block == sym->typeExpr)     msg = "typeExpr";
+    else if (block == sym->defaultExpr)  msg = "defaultExpr";
+    else if (block == sym->variableExpr) msg = "variableExpr";
+    if (msg != NULL)
+      printf("  arg %s[%d] %s", sym->name, sym->id, msg);
+  } else if (ShadowVarSymbol* sym = toShadowVarSymbol(block->parentSymbol)) {
+    const char* msg = NULL;
+    if      (block == sym->initBlock())   msg = "initBlock";
+    else if (block == sym->deinitBlock()) msg = "deinitBlock";
+    else if (block == sym->specBlock)     msg = "specBlock";
+    if (msg != NULL)
+      printf("  svar %s[%d] %s", sym->name, sym->id, msg);
+  }
+  printf("\n");
+}
+
+void vec_view(Vec<BlockStmt*, VEC_INTEGRAL_SIZE>* v) {
+  vec_view(*v);
+}
+
+void vec_view(Vec<BlockStmt*, VEC_INTEGRAL_SIZE>& v) {
+  printf("Vec<BlockStmt> %d elm(s)\n", v.n);
+  for (int i = 0; i < v.n; i++) {
+    BlockStmt* elm = v.v[i];
+    if (elm) printf("%3d", i), showBlock(elm);
+    else     printf("%3d  <null>\n", i);
+  }
+}
+
+void vec_view(std::vector<BlockStmt*>* v) {
+  vec_view(*v);
+}
+
+void vec_view(std::vector<BlockStmt*>& v) {
+  printf("vector<BlockStmt> %d elm(s)\n", (int)v.size());
+  for (int i = 0; i < (int)v.size(); i++) {
+    BlockStmt* elm = v[i];
+    if (elm) printf("%3d", i), showBlock(elm);
+    else     printf("%3d  <null>\n", i);
+  }
+}
+
+void vec_view(Vec<ResolutionCandidate*, VEC_INTEGRAL_SIZE>* v) {
+  vec_view(*v);
+}
+
+void vec_view(Vec<ResolutionCandidate*, VEC_INTEGRAL_SIZE>& v) {
+  printf("Vec<ResolutionCandidate> %d elm(s)\n", v.n);
+  for (int i = 0; i < v.n; i++) {
+    ResolutionCandidate* elm = v.v[i];
+    if (elm) {
+      printf("%3d", i);
+      if (elm->fn) showFnSymbol(elm->fn);
+      else         printf("  RC.fn=<null>\n");
+    }
+    else printf("%3d  <null>\n", i);
+  }
+}
+
+//
+// set_view: print the contents of a std::set
+//
+
+void set_view(std::set<BlockStmt*>* bss) {
+  set_view(*bss);
+}
+
+void set_view(std::set<BlockStmt*>& bss) {
+  printf("set<BlockStmt> %d elm(s)\n", (int)bss.size());
+  std::set<BlockStmt*>::iterator it = bss.begin();
+  while (it != bss.end()) {
+    debugSummary(*(it++));
+  }
+}
+
 //
 // fnsWithName: print all FnSymbols with the given name
 //
+
 void fnsWithName(const char* name) {
   fnsWithName(name, gFnSymbols);
 }
@@ -1086,6 +1180,7 @@ void fnsWithName(const char* name, Vec<FnSymbol*,VEC_INTEGRAL_SIZE>& fnVec) {
 //
 // whocalls: print all ways that the AST with the given 'id' is invoked
 //
+
 static void whocalls(int id, Symbol* sym);
 
 void whocalls(BaseAST* ast) {

@@ -25,6 +25,18 @@
 #include "passes.h"
 #include "stringutil.h"
 
+ForallOptimizationInfo::ForallOptimizationInfo():
+  iterSym(NULL),
+  dotDomIterExpr(NULL),
+  dotDomIterSym(NULL),
+  dotDomIterSymDom(NULL),
+  iterCall(NULL),
+  iterCallTmp(NULL),
+  autoLocalAccessChecked(false),
+  confirmedFastFollower(false)
+{
+}
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // ForallStmt represents a forall loop statement
@@ -158,7 +170,6 @@ void ForallStmt::verify() {
   INT_ASSERT(fLoopBody->blockTag == BLOCK_NORMAL);
   INT_ASSERT(!fLoopBody->blockInfoGet());
   INT_ASSERT(!fLoopBody->isLoopStmt());
-  INT_ASSERT(!fLoopBody->useList);
   INT_ASSERT(!fLoopBody->userLabel);
   INT_ASSERT(!fLoopBody->byrefVars);
 

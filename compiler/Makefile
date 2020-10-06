@@ -101,8 +101,8 @@ CHPL_OBJS = \
 
 EXECS = $(CHPL) $(CHPLDOC)
 
-PRETARGETS = $(BUILD_VERSION_FILE) $(CONFIGURED_PREFIX_FILE) llvm $(CLANG_SETTINGS_FILE)
-TARGETS = $(CHPL) $(CHPL_OLD)
+PRETARGETS = $(BUILD_VERSION_FILE) $(CONFIGURED_PREFIX_FILE) $(CLANG_SETTINGS_FILE)
+TARGETS = $(CHPL)
 
 LIBS = -lm
 
@@ -163,9 +163,6 @@ $(CHPL): $(CHPL_OBJS) $(CHPL_CONFIG_CHECK) | $(CHPL_BIN_DIR)
 	$(TAGS_COMMAND)
 	$(EBROWSE_COMMAND)
 
-$(CHPL_OLD): $(CHPL) $(CHPL_OLD_BIN_DIR)
-	cp "$(CHPL_MAKE_HOME)/util/config/old-chpl.sh" "$(CHPL_OLD_BIN_DIR)/chpl"
-
 $(CHPLDOC): $(CHPL)
 	rm -f $(CHPLDOC)
 	ln -s $(notdir $(CHPL)) $(CHPLDOC)
@@ -181,22 +178,6 @@ $(COMPILER_BUILD):
 $(CHPL_BIN_DIR):
 	mkdir -p $@
 
-$(CHPL_OLD_BIN_DIR):
-	mkdir -p $@
-
-
-# third-party pkgs could be automatically built with the below.
-#
-#THIRD_PARTY_PKGS = $(shell $(CHPL_MAKE_HOME)/util/chplenv/third-party-pkgs --compiler)
-# NOTE: If any of these builds fail, we won't stop building
-#third-party-pkgs:
-#	@for p in $(THIRD_PARTY_PKGS); do \
-#		$(MAKE) -C $(THIRD_PARTY_DIR) $$p; \
-#	done
-
-llvm: FORCE
-	@echo "Making LLVM..."
-	@$(MAKE) -C $(THIRD_PARTY_DIR) llvm
 
 #
 # include standard footer for compiler

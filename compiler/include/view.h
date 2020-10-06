@@ -26,6 +26,7 @@
 #include <vector>
 
 class GenRet;
+class ResolutionCandidate;
 
 BaseAST* aid(int id);
 BaseAST* aid09(int id);
@@ -77,15 +78,23 @@ void        viewFlags(int id);
 void        map_view(SymbolMap* map);
 void        map_view(SymbolMap& map);
 
+void        set_view(std::set<BlockStmt*>* bss);
+void        set_view(std::set<BlockStmt*>& bss);
+
 void        vec_view(Vec<Symbol*,   VEC_INTEGRAL_SIZE>* v);
 void        vec_view(Vec<Symbol*,   VEC_INTEGRAL_SIZE>& v);
 void        vec_view(Vec<FnSymbol*, VEC_INTEGRAL_SIZE>* v);
 void        vec_view(Vec<FnSymbol*, VEC_INTEGRAL_SIZE>& v);
+void        vec_view(Vec<BlockStmt*, VEC_INTEGRAL_SIZE>* v);
+void        vec_view(Vec<BlockStmt*, VEC_INTEGRAL_SIZE>& v);
+void        vec_view(Vec<ResolutionCandidate*, VEC_INTEGRAL_SIZE>* v);
+void        vec_view(Vec<ResolutionCandidate*, VEC_INTEGRAL_SIZE>& v);
 void        vec_view(std::vector<Symbol*>* syms);
 void        vec_view(std::vector<Symbol*>& syms);
 void        vec_view(std::vector<FnSymbol*>* syms);
 void        vec_view(std::vector<FnSymbol*>& syms);
-
+void        vec_view(std::vector<BlockStmt*>* v);
+void        vec_view(std::vector<BlockStmt*>& v);
 
 void        fnsWithName(const char* name);
 void        fnsWithName(const char* name, Vec<FnSymbol*>& fnVec);

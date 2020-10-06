@@ -31,6 +31,8 @@ module ChapelHashtable {
 
   use ChapelBase, DSIUtil;
 
+  private use CPtr;
+
   // empty needs to be 0 so memset 0 sets it
   enum chpl__hash_status { empty=0, full, deleted };
 
@@ -207,18 +209,12 @@ module ChapelHashtable {
 
     const numChunks = _allSlotsNumChunks(size);
 
-    if numChunks == 1 {
-      for slot in 0..#size {
+    coforall chunk in 0..#numChunks {
+      const (lo, hi) = _computeBlock(size, numChunks, chunk, size-1);
+      if debugAssocDataPar then
+        writeln("*** chunk: ", chunk, " owns ", lo..hi);
+      for slot in lo..hi {
         yield slot;
-      }
-    } else {
-      coforall chunk in 0..#numChunks {
-        const (lo, hi) = _computeBlock(size, numChunks, chunk, size-1);
-        if debugAssocDataPar then
-          writeln("*** chunk: ", chunk, " owns ", lo..hi);
-        for slot in lo..hi {
-          yield slot;
-        }
       }
     }
   }
@@ -231,18 +227,15 @@ module ChapelHashtable {
 
     const numChunks = _allSlotsNumChunks(size);
 
-    if numChunks == 1 {
-      yield 0..#size;
-    } else {
-      coforall chunk in 0..#numChunks {
-        const (lo, hi) = _computeBlock(size, numChunks, chunk, size-1);
-        if debugDefaultAssoc then
-          writeln("*** DI[", chunk, "]: tuple = ", (lo..hi,));
-        yield lo..hi;
-      }
+    coforall chunk in 0..#numChunks {
+      const (lo, hi) = _computeBlock(size, numChunks, chunk, size-1);
+      if debugDefaultAssoc then
+        writeln("*** DI[", chunk, "]: tuple = ", (lo..hi,));
+      yield lo..hi;
     }
   }
 
+  pragma "order independent yielding loops"
   private iter _allSlots(size: int, followThis, param tag: iterKind)
     where tag == iterKind.follower {
 
@@ -392,6 +385,7 @@ module ChapelHashtable {
       return (false, -1);
     }
 
+    pragma "order independent yielding loops"
     iter _lookForSlots(key: keyType, numSlots = tableSize) {
       const baseSlot = chpl__defaultHashWrapper(key):uint;
       if numSlots == 0 then return;
@@ -577,7 +571,7 @@ module ChapelHashtable {
           rehashHelpers!.startRehash(tableSize);
 
         // tableNumFullSlots stays the same during this operation
-        // and all all deleleted slots are removed
+        // and all all deleted slots are removed
         tableNumDeletedSlots = 0;
 
         // Move old data into newly resized table
@@ -693,6 +687,7 @@ module ChapelHashtable {
       }
     }
 
+    pragma "order independent yielding loops"
     iter these() {
       for slot in table.allSlots() do
         if table.isSlotFull(slot) then

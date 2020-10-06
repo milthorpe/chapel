@@ -28,7 +28,7 @@ module ChapelBase {
   var rootLocaleInitialized: bool = false;
 
   public use ChapelStandard;
-  use ChapelEnv, SysCTypes;
+  use ChapelEnv, SysCTypes, CPtr;
 
   config param enablePostfixBangChecks = false;
 
@@ -670,15 +670,6 @@ module ChapelBase {
     }
   }
 
-  inline proc postfix!(type t: class) type {
-    compilerWarning("applying the postfix-! operator to a type is deprecated; instead use a cast to 'class' or 'borrowed class', e.g. 'MyType :borrowed class'");
-    return _to_borrowed(_to_nonnil(t));
-  }
-  inline proc postfix!(type t: class?) type {
-    compilerWarning("applying the postfix-! operator to a type is deprecated; instead use a cast to 'class' or 'borrowed class', e.g. 'MyType :borrowed class'");
-    return _to_borrowed(_to_nonnil(t));
-  }
-
   inline proc postfix!(x:unmanaged class) {
     return _to_nonnil(x);
   }
@@ -721,7 +712,7 @@ module ChapelBase {
   inline proc chpl_statementLevelSymbol(ir: _iteratorRecord) {
     iter _ir_copy_recursive(ir) {
       for e in ir do
-        yield chpl__initCopy(e);
+        yield chpl__initCopy(e, definedConst=false);
     }
 
     pragma "no copy" var irc = _ir_copy_recursive(ir);
@@ -1157,8 +1148,14 @@ module ChapelBase {
     const dptpl = if dataParTasksPerLocale==0 then here.maxTaskPar
                   else dataParTasksPerLocale;
 
-    if numTasks >= dptpl then
+    if numTasks >= dptpl {
       chpl_rt_reset_task_spawn();
+    } else if numTasks == 1 {
+      // Don't create a task for local single iteration coforalls
+      use ChapelTaskData;
+      var tls = chpl_task_getInfoChapel();
+      chpl_task_data_setNextCoStmtSerial(tls, true);
+    }
   }
 
   config param useAtomicTaskCnt =  CHPL_NETWORK_ATOMICS!="none";
@@ -1240,6 +1237,9 @@ module ChapelBase {
     }
     if countRunningTasks {
       here.runningTaskCntAdd(1);  // decrement is in _waitEndCount()
+      chpl_comm_task_create();    // countRunningTasks is a proxy for "is local"
+                                  // here.  Comm layers are responsible for the
+                                  // remote case themselves.
     }
   }
 
@@ -1250,18 +1250,27 @@ module ChapelBase {
     e.i.add(numTasks:int, memoryOrder.release);
 
     if countRunningTasks {
-      here.runningTaskCntAdd(numTasks:int-1);  // decrement is in _waitEndCount()
+      if numTasks > 1 {
+        here.runningTaskCntAdd(numTasks:int-1);  // decrement is in _waitEndCount()
+      }
+      chpl_comm_task_create();    // countRunningTasks is a proxy for "is local"
+                                  // here.  Comm layers are responsible for the
+                                  // remote case themselves.
     } else {
       here.runningTaskCntSub(1);
     }
   }
 
+  extern proc chpl_comm_unordered_task_fence(): void;
+
+  extern proc chpl_comm_task_create();
+
   pragma "task complete impl fn"
   extern proc chpl_comm_task_end(): void;
 
-  pragma "task complete impl fn"
+  pragma "compiler added remote fence"
   proc chpl_after_forall_fence() {
-    chpl_comm_task_end(); // TODO: change to chpl_comm_unordered_task_fence()
+    chpl_comm_unordered_task_fence();
   }
 
   // This function is called once by each newly initiated task.  No on
@@ -1321,7 +1330,9 @@ module ChapelBase {
     e.i.waitFor(0, memoryOrder.acquire);
 
     if countRunningTasks {
-      here.runningTaskCntSub(numTasks:int-1);
+      if numTasks > 1 {
+        here.runningTaskCntSub(numTasks:int-1);
+      }
     } else {
       here.runningTaskCntAdd(1);
     }
@@ -1372,6 +1383,10 @@ module ChapelBase {
     if t == string {
       return str;
     } else {
+      // we need to do an iteration over a range variable before casting a
+      // string to a type. Otherwise, we can't resolve chpl_debug_writeln in
+      // `range.these`
+      { var dummyRange = 1..0; for i in dummyRange {} }
       return str:t;
     }
   }
@@ -1624,7 +1639,7 @@ module ChapelBase {
     return if x != 0i then true else false;
 
   pragma "init copy fn"
-  inline proc chpl__initCopy(type t) type {
+  inline proc chpl__initCopy(type t, definedConst: bool)  type {
     compilerError("illegal assignment of type to value");
     return t;
   }
@@ -1632,7 +1647,7 @@ module ChapelBase {
   pragma "compiler generated"
   pragma "last resort"
   pragma "init copy fn"
-  inline proc chpl__initCopy(x: _tuple) {
+  inline proc chpl__initCopy(x: _tuple, definedConst: bool) {
     // body inserted during generic instantiation
   }
 
@@ -1641,7 +1656,7 @@ module ChapelBase {
   pragma "last resort"
   pragma "init copy fn"
   pragma "suppress lvalue error"
-  inline proc chpl__initCopy(const x) {
+  inline proc chpl__initCopy(const x, definedConst: bool) {
     // body adjusted during generic instantiation
     return x;
   }
@@ -1649,7 +1664,7 @@ module ChapelBase {
   pragma "compiler generated"
   pragma "last resort"
   pragma "auto copy fn"
-  inline proc chpl__autoCopy(x: _tuple) {
+  inline proc chpl__autoCopy(x: _tuple, definedConst: bool) {
     // body inserted during generic instantiation
   }
 
@@ -1663,7 +1678,7 @@ module ChapelBase {
 
   pragma "compiler generated"
   pragma "auto copy fn"
-  inline proc chpl__autoCopy(ir: _iteratorRecord) {
+  inline proc chpl__autoCopy(ir: _iteratorRecord, definedConst: bool) {
     // body modified during call destructors pass
     return ir;
   }
@@ -1672,28 +1687,8 @@ module ChapelBase {
   pragma "last resort"
   pragma "auto copy fn"
   pragma "suppress lvalue error"
-  inline proc chpl__autoCopy(const x) return chpl__initCopy(x);
-
-  pragma "compiler generated"
-  pragma "last resort"
-  pragma "unalias fn"
-  inline proc chpl__unalias(x) {
-    pragma "no copy" var ret = x;
-    return ret;
-  }
-
-  // Returns an array storing the result of the iterator
-  pragma "unalias fn"
-  inline proc chpl__unalias(x:_iteratorClass) {
-    pragma "no copy" var ret = x;
-    return ret;
-  }
-
-  // Returns an array storing the result of the iterator
-  pragma "unalias fn"
-  inline proc chpl__unalias(const ref x:_iteratorRecord) {
-    pragma "no copy" var ret = x;
-    return ret;
+  inline proc chpl__autoCopy(const x, definedConst: bool) {
+    return chpl__initCopy(x, definedConst);
   }
 
   pragma "compiler generated"
@@ -1750,7 +1745,7 @@ module ChapelBase {
 
   // implements 'delete' statement
   pragma "no borrow convert"
-  inline proc chpl__delete(arg) {
+  proc chpl__delete(arg) {
 
     if chpl_isDdata(arg.type) then
       compilerError("cannot delete data class");
@@ -1783,7 +1778,7 @@ module ChapelBase {
   }
 
   // delete two or more things
-  inline proc chpl__delete(arg, args...) {
+  proc chpl__delete(arg, args...) {
     chpl__delete(arg);
     for param i in 0..args.size-1 do
       chpl__delete(args(i));
@@ -1931,20 +1926,20 @@ module ChapelBase {
     lhs = lhs ^ rhs;
   }
 
-  inline proc >>=(ref lhs:int(?w), rhs:int(w)) {
+  inline proc >>=(ref lhs:int(?w), rhs:integral) {
     __primitive(">>=", lhs, rhs);
   }
-  inline proc >>=(ref lhs:uint(?w), rhs:uint(w)) {
+  inline proc >>=(ref lhs:uint(?w), rhs:integral) {
     __primitive(">>=", lhs, rhs);
   }
   inline proc >>=(ref lhs, rhs) {
     lhs = lhs >> rhs;
   }
 
-  inline proc <<=(ref lhs:int(?w), rhs:int(w)) {
+  inline proc <<=(ref lhs:int(?w), rhs:integral) {
     __primitive("<<=", lhs, rhs);
   }
-  inline proc <<=(ref lhs:uint(?w), rhs:uint(w)) {
+  inline proc <<=(ref lhs:uint(?w), rhs:integral) {
     __primitive("<<=", lhs, rhs);
   }
   inline proc <<=(ref lhs, rhs) {
@@ -2400,10 +2395,5 @@ module ChapelBase {
   pragma "no borrow convert"
   inline proc _removed_cast(in x) {
     return x;
-  }
-
-  proc enumerated type {
-    compilerWarning("'enumerated' is deprecated - please use 'enum' instead");
-    return enum;
   }
 }

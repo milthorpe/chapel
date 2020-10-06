@@ -35,6 +35,7 @@
 #include "ForallStmt.h"
 #include "expr.h"
 #include "errorHandling.h"
+#include "optimizations.h"
 #include "resolution.h"
 #include "stmt.h"
 #include "symbol.h"
@@ -496,8 +497,11 @@ static bool findCopyElisionCandidate(CallExpr* call,
             rhsCall->isNamedAstr(astr_autoCopy) ||
             rhsCall->isNamedAstr(astr_coerceCopy)) {
           int nActuals = rhsCall->numActuals();
-          if (nActuals >= 1) {
-            if (SymExpr* rhsSe = toSymExpr(rhsCall->get(nActuals))) {
+          if (nActuals >= 2) {  // definedConst argument is the second arg
+            // note that errorLowering can add an argument
+            int rhsIdx = rhsCall->isNamedAstr(astr_coerceCopy) ? 2 : 1;
+            sanityCheckDefinedConstArg(rhsCall->get(rhsIdx+1));
+            if (SymExpr* rhsSe = toSymExpr(rhsCall->get(rhsIdx))) {
               if (lhsSe->getValType() == rhsSe->getValType()) {
                 lhs = lhsSe->symbol();
                 rhs = rhsSe->symbol();
@@ -516,8 +520,11 @@ static bool findCopyElisionCandidate(CallExpr* call,
       call->isNamedAstr(astr_coerceCopy)) {
     if (FnSymbol* calledFn = call->resolvedFunction()) {
       int nActuals = call->numActuals();
-      if (calledFn->hasFlag(FLAG_FN_RETARG) && nActuals >= 2) {
-        if (SymExpr* rhsSe = toSymExpr(call->get(nActuals-1))) {
+      // as this is function that returns via RVV, we have something like:
+      // initCopy(rhs, definedConst, retArg)
+      if (calledFn->hasFlag(FLAG_FN_RETARG) && nActuals >= 3) {
+        if (SymExpr* rhsSe = toSymExpr(call->get(nActuals-2))) {
+          sanityCheckDefinedConstArg(call->get(nActuals-1));
           if (SymExpr* lhsSe = toSymExpr(call->get(nActuals))) {
             if (lhsSe->getValType() == rhsSe->getValType()) {
               lhs = lhsSe->symbol();
@@ -572,8 +579,27 @@ static void doElideCopies(VarToCopyElisionState &map) {
           call->get(2)->replace(new SymExpr(tmp));
         } else {
           // Change the copy into a move and don't destroy the variable.
+          
+          Symbol *definedConst = NULL;
+          if (call->isPrimitive(PRIM_MOVE)) {
+            if (CallExpr *rhsCall = toCallExpr(call->get(2))) {
+              if (rhsCall->isNamedAstr(astr_initCopy) ||
+                  rhsCall->isNamedAstr(astr_autoCopy)) { // can it be autoCopy?
+                definedConst = toSymExpr(rhsCall->get(2))->symbol();
+                INT_ASSERT(definedConst->getValType() == dtBool);
+              }
+
+            }
+          }
+
           call->convertToNoop();
           call->insertBefore(new CallExpr(PRIM_ASSIGN_ELIDED_COPY, lhs, var));
+
+          if (definedConst != NULL) {
+            if (lhs->getValType()->symbol->hasFlag(FLAG_DOMAIN)) {
+              setDefinedConstForDomainSymbol(lhs, call, definedConst);
+            }
+          }
         }
 
         if (AggregateType* at = toAggregateType(lhs->getValType())) {
@@ -644,7 +670,8 @@ static bool canCopyElideVar(Symbol* rhs) {
 static bool canCopyElideCall(CallExpr* call, Symbol* lhs, Symbol* rhs) {
   return canCopyElideVar(rhs) &&
          rhs->getValType() == lhs->getValType() &&
-         rhs->defPoint->parentSymbol == call->parentSymbol;
+         rhs->defPoint->parentSymbol == call->parentSymbol &&
+         !(isCallExprTemporary(rhs) && isTemporaryFromNoCopyReturn(rhs));
 }
 
 // returns true if there was an unconditional return

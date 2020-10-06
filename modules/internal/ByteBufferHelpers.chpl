@@ -21,11 +21,12 @@
 module ByteBufferHelpers {
   private use ChapelStandard;
   private use SysCTypes;
+  private use CPtr;
 
   pragma "no doc"
   type byteType = uint(8);
   pragma "no doc"
-  type bufferType = c_ptr(uint(8));
+  type bufferType = c_ptr(byteType);
   pragma "no doc"
   type locIdType = chpl_nodeID.type;
 
@@ -58,13 +59,13 @@ module ByteBufferHelpers {
     __primitive("chpl_comm_get", dest, src_loc_id, src_addr, len.safeCast(size_t));
   }
 
-  private inline proc getGoodAllocSize(requestedSize: int) {
+  private inline proc getGoodAllocSize(requestedSize: int): int {
     const allocSize = max(chpl_here_good_alloc_size(requestedSize),
                           chpl_stringMinAllocSize);
     return allocSize;
   }
 
-  inline proc bufferAlloc(requestedSize) {
+  inline proc bufferAlloc(requestedSize): (bufferType, int) {
     const allocSize = getGoodAllocSize(requestedSize);
     var buf = chpl_here_alloc(allocSize,
                               offset_STR_COPY_DATA): bufferType;

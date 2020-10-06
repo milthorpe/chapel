@@ -44,7 +44,7 @@ var files: list(string);
 /* Runs the .chpl files found within the /tests directory of Mason packages
    or files which in the path provided.
 */
-proc masonTest(args) throws {
+proc masonTest(args: [] string) throws {
 
   var show = false;
   var run = true;
@@ -319,7 +319,7 @@ private proc runTestBinary(projectHome: string, outputLoc: string, testName: str
       erroredTestNames: list(string),
       testsPassed: list(string),
       skippedTestNames: list(string);
-  var localesCountMap: map(int, int, parSafe=true);
+  var localesCountMap: map(int, int, parSafe=false);
   const exitCode = runAndLog(command, testName+".chpl", result, numLocales, testsPassed,
             testNames, localesCountMap, failedTestNames, erroredTestNames, skippedTestNames, show);
   if exitCode != 0 {
@@ -527,7 +527,7 @@ proc testFile(file, ref result, show: bool) throws {
         erroredTestNames: list(string),
         testsPassed: list(string),
         skippedTestNames: list(string);
-    var localesCountMap: map(int, int, parSafe=true);
+    var localesCountMap: map(int, int, parSafe=false);
     const exitCode = runAndLog("./"+executable, fileName, result, numLocales, testsPassed,
               testNames, localesCountMap, failedTestNames, erroredTestNames, skippedTestNames, show);
     if exitCode != 0 {

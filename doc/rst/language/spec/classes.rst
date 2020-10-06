@@ -1,3 +1,5 @@
+.. default-domain:: chpl
+
 .. _Chapter-Classes:
 
 Classes
@@ -33,7 +35,7 @@ A class is defined with the following syntax:
 .. code-block:: syntax
 
    class-declaration-statement:
-     `class' identifier class-inherit[OPT] { class-statement-list[OPT] }
+     'class' identifier class-inherit[OPT] { class-statement-list[OPT] }
 
    class-inherit:
      : basic-class-type
@@ -83,17 +85,15 @@ Each allocation of a class instance specifies a *memory management
 strategy*. Four memory management strategies are available: ``owned``,
 ``shared``, ``borrowed``, and ``unmanaged``.
 
-| ``owned`` and ``shared`` class instances always have their lifetime
-  managed by the compiler. In other words, the compiler automatically
-  calls ``delete`` on these instances to reclaim their memory. For these
-  instances, ``=`` and copy initialization can result in the transfer or
-  sharing of ownership. See
-| https://chapel-lang.org/docs/builtins/OwnedObject.html
-| and
-| https://chapel-lang.org/docs/builtins/SharedObject.html
-| When ``borrowed`` is used as a memory management strategy in a
-  ``new-expression``, it also creates an instance that has its lifetime
-  managed by the compiler (:ref:`Class_New`).
+``owned`` and ``shared`` class instances always have their lifetime
+managed by the compiler. In other words, the compiler automatically calls
+``delete`` on these instances to reclaim their memory. For these
+instances, ``=`` and copy initialization can result in the transfer or
+sharing of ownership. See the module documentation for :mod:`owned
+<OwnedObject>` and :mod:`shared <SharedObject>`.  When ``borrowed`` is
+used as a memory management strategy in a ``new-expression``, it also
+creates an instance that has its lifetime managed by the compiler
+(:ref:`Class_New`).
 
 Class instances that are ``unmanaged`` have their lifetime managed
 explicitly and ``delete`` must be used to reclaim their memory.
@@ -171,16 +171,15 @@ memory management strategy.
 
    class-type:
      basic-class-type
-     `owned' basic-class-type
-     `shared' basic-class-type
-     `borrowed' basic-class-type
-     `unmanaged' basic-class-type
+     'owned' basic-class-type
+     'shared' basic-class-type
+     'borrowed' basic-class-type
+     'unmanaged' basic-class-type
 
 A basic class type is given simply by the class name for non-generic
 classes. Generic classes must be instantiated to serve as a
 fully-specified type, for example to declare a variable. This is done
-with type constructors, which are defined in
-Section \ `24.3.6 <#Type_Constructors>`__.
+with type constructors, which are defined in Section :ref:`Type_Constructors`.
 
 
 
@@ -202,14 +201,14 @@ nilable (:ref:`Nilable_Classes`).
 
 The memory management strategies have the following meaning:
 
--  | ``owned`` the instance will be deleted automatically when the
-     ``owned`` variable goes out of scope, but only one ``owned``
-     variable can refer to the instance at a time. See
-   | https://chapel-lang.org/docs/builtins/OwnedObject.html
+-  ``owned`` the instance will be deleted automatically when the
+   ``owned`` variable goes out of scope, but only one ``owned`` variable
+   can refer to the instance at a time. See the module documentation for
+   :mod:`owned <OwnedObject>`.
 
--  | ``shared`` will be deleted when all of the ``shared`` variables
-     referring to the instance go out of scope. See
-   | https://chapel-lang.org/docs/builtins/SharedObject.html.
+-  ``shared`` will be deleted when all of the ``shared`` variables
+   referring to the instance go out of scope. See
+   the module documentation for :mod:`shared <SharedObject>`.
 
 -  ``borrowed`` refers to a class instance that has a lifetime managed
    by another variable.
@@ -402,12 +401,6 @@ formal/variable/field is non-nilable or generic, including generic
 memory management.
 
 
-
-.. code-block:: syntax
-
-   nil-expression:
-     `nil'
-
 .. _Class_Fields:
 
 Class Fields
@@ -452,15 +445,13 @@ Field access is described in :ref:`Class_Field_Accesses`.
 Class Methods
 ~~~~~~~~~~~~~
 
-Methods on classes are referred to as to as *class methods*. See the
-methods section :ref:`Chapter-Methods` for more information about
-methods.
+Methods on classes are referred to as *class methods*.
+See :ref:`Chapter-Methods` for more information about methods.
 
 Within a class method, the type of ``this`` is generally the non-nilable
 ``borrowed`` variant of the class type. It is different for type methods
 (see below) and it might be a different type if the class method is
-declared as a secondary method with a type expression
-(see `[Secondary_Methods_with_Type_Expressions] <#Secondary_Methods_with_Type_Expressions>`__).
+declared as a secondary method with a type expression.
 
 For example:
 
@@ -583,8 +574,8 @@ parent class.
 It is possible for a class to inherit from a generic class. Suppose for
 example that a class ``C`` inherits from class ``ParentC``. In this
 situation, ``C`` will have type constructor arguments based upon generic
-fields in the ``ParentC`` as described in
- `24.3.6 <#Type_Constructors>`__. Furthermore, a fully specified ``C``
+fields in the ``ParentC`` as described
+in :ref:`Type_Constructors`. Furthermore, a fully specified ``C``
 will be a subclass of a corresponding fully specified ``ParentC``.
 
 .. _The_object_Class:
@@ -706,7 +697,7 @@ The new expression can be defined by the following syntax:
 .. code-block:: syntax
 
    new-expression:
-     `new' type-expression ( argument-list )
+     'new' type-expression ( argument-list )
 
 An initializer for a given class is called by placing the ``new``
 operator in front of a type expression. Any initializer arguments follow
@@ -782,7 +773,7 @@ are initialized must be initialized in declaration order.
 Initializers for generic classes (:ref:`Generic_Types`) handle
 generic fields without default values differently and may need to
 satisfy additional requirements. See
-Section \ `24.3.9 <#Generic_User_Initializers>`__ for details.
+Section :ref:`Generic_User_Initializers` for details.
 
    *Example (simpleInitializers.chpl)*.
 
@@ -2045,7 +2036,7 @@ with the ``delete`` statement:
 .. code-block:: syntax
 
    delete-statement:
-     `delete' expression-list ;
+     'delete' expression-list ;
 
 where the expression-list specifies the class objects whose memory will
 be reclaimed. Prior to releasing their memory, the deinitialization

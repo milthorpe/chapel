@@ -30,7 +30,7 @@ module DefaultRectangular {
 
   use DSIUtil;
   public use ChapelArray;
-  use ChapelDistribution, ChapelRange, SysBasic, SysError, SysCTypes;
+  use ChapelDistribution, ChapelRange, SysBasic, SysError, SysCTypes, CPtr;
   use ChapelDebugPrint, ChapelLocks, OwnedObject, IO;
   use DefaultSparse, DefaultAssociative;
   public use ExternalArray; // OK: currently expected to be available by
@@ -42,6 +42,10 @@ module DefaultRectangular {
   config param debugDataParNuma = false;
   config param disableArrRealloc = false;
   config param reportInPlaceRealloc = false;
+
+  config param parallelAssignThreshold = 2*1024*1024;
+  config param enableParallelGetsInAssignment = false;
+  config param enableParallelPutsInAssignment = false;
 
   config param defaultDoRADOpt = true;
   config param defaultDisableLazyRADOpt = false;
@@ -138,7 +142,8 @@ module DefaultRectangular {
       //
       // The code below is copied from the contents of the "proc =".
       const nd = new dmap(new unmanaged DefaultDist());
-      __primitive("move", defaultDist, chpl__autoCopy(nd.clone()));
+      __primitive("move", defaultDist, chpl__autoCopy(nd.clone(),
+                                                      definedConst=false));
     }
   }
 
@@ -149,7 +154,7 @@ module DefaultRectangular {
     override proc linksDistribution() param return false;
     override proc dsiLinksDistribution()     return false;
 
-    proc type isDefaultRectangular() param return true;
+    override proc type isDefaultRectangular() param return true;
     override proc isDefaultRectangular() param return true;
 
     proc init(param rank, type idxType, param stridable, dist) {
@@ -201,6 +206,7 @@ module DefaultRectangular {
       chpl_assignDomainWithGetSetIndices(this, rhs);
     }
 
+    pragma "order independent yielding loops"
     iter these_help(param d: int) /*where storageOrder == ArrayStorageOrder.RMO*/ {
       if d == rank-1 {
         for i in ranges(d) do
@@ -233,6 +239,7 @@ module DefaultRectangular {
     }
 */
 
+    pragma "order independent yielding loops"
     iter these_help(param d: int, block) /*where storageOrder == ArrayStorageOrder.RMO*/ {
       if d == block.size-1 {
         for i in block(d) do
@@ -297,7 +304,7 @@ module DefaultRectangular {
                 "), minIndicesPerTask=", minIndicesPerTask);
       }
       const (numChunks, parDim) = if __primitive("task_get_serial") then
-                                  (1, -1) else
+                                  (1, 0) else
                                   _computeChunkStuff(numTasks,
                                                      ignoreRunning,
                                                      minIndicesPerTask,
@@ -313,38 +320,32 @@ module DefaultRectangular {
                            "### numChunks = ", numChunks, " (parDim = ", parDim, ")\n",
                            "### nranges = ", ranges);
       }
-      if numChunks <= 1 {
-        for i in these_help(0) {
-          yield i;
-        }
-      } else {
+      if debugDefaultDist {
+        chpl_debug_writeln("*** DI: ranges = ", ranges);
+      }
+      // TODO: The following is somewhat of an abuse of what
+      // _computeBlock() was designed for (dense ranges only; I
+      // multiplied by the stride as a white lie to make it work
+      // reasonably.  We should switch to using the RangeChunk
+      // library...
+      coforall chunk in 0..#numChunks {
+        var block = ranges;
+        const len = if (!ranges(parDim).stridable) then ranges(parDim).size
+            else ranges(parDim).size:uint * abs(ranges(parDim).stride):uint;
+        const (lo,hi) = _computeBlock(len,
+                                      numChunks, chunk,
+                                      ranges(parDim)._high,
+                                      ranges(parDim)._low,
+                                      ranges(parDim)._low);
+        if block(parDim).stridable then
+          block(parDim) = lo..hi by block(parDim).stride align chpl__idxToInt(block(parDim).alignment);
+        else
+          block(parDim) = lo..hi;
         if debugDefaultDist {
-          chpl_debug_writeln("*** DI: ranges = ", ranges);
+          chpl_debug_writeln("*** DI[", chunk, "]: block = ", block);
         }
-        // TODO: The following is somewhat of an abuse of what
-        // _computeBlock() was designed for (dense ranges only; I
-        // multiplied by the stride as a white lie to make it work
-        // reasonably.  We should switch to using the RangeChunk
-        // library...
-        coforall chunk in 0..#numChunks {
-          var block = ranges;
-          const len = if (!ranges(parDim).stridable) then ranges(parDim).size
-              else ranges(parDim).size:uint * abs(ranges(parDim).stride):uint;
-          const (lo,hi) = _computeBlock(len,
-                                        numChunks, chunk,
-                                        ranges(parDim)._high,
-                                        ranges(parDim)._low,
-                                        ranges(parDim)._low);
-          if block(parDim).stridable then
-            block(parDim) = lo..hi by block(parDim).stride align chpl__idxToInt(block(parDim).alignment);
-          else
-            block(parDim) = lo..hi;
-          if debugDefaultDist {
-            chpl_debug_writeln("*** DI[", chunk, "]: block = ", block);
-          }
-          for i in these_help(0, block) {
-            yield i;
-          }
+        for i in these_help(0, block) {
+          yield i;
         }
       }
     }
@@ -370,7 +371,7 @@ module DefaultRectangular {
         const numSublocTasks = min(numSublocs, dptpl);
         // For serial tasks, we will only have a single chunk
         const (numChunks, parDim) = if __primitive("task_get_serial") then
-                                    (1, -1) else
+                                    (1, 0) else
                                     _computeChunkStuff(numSublocTasks,
                                                        ignoreRunning=true,
                                                        minIndicesPerTask,
@@ -384,59 +385,48 @@ module DefaultRectangular {
                   "### nranges = ", ranges);
         }
 
-        if numChunks == 1 {
-          if rank == 1 {
-            yield (offset(0)..#ranges(0).size,);
-          } else {
-            var block: rank*range(intIdxType);
+        coforall chunk in 0..#numChunks { // make sure coforall on can trigger
+          local do on here.getChild(chunk) {
+            if debugDataParNuma {
+              if chunk!=chpl_getSubloc() then
+                chpl_debug_writeln("*** ERROR: ON WRONG SUBLOC (should be ", chunk,
+                                   ", on ", chpl_getSubloc(), ") ***");
+            }
+            // Divide the locale's tasks approximately evenly
+            // among the sublocales
+            const numSublocTasks = (if chunk < dptpl % numChunks
+                                    then dptpl / numChunks + 1
+                                    else dptpl / numChunks);
+            var locBlock: rank*range(intIdxType);
             for param i in 0..rank-1 do
-              block(i) = offset(i)..#ranges(i).size;
-            yield block;
-          }
-        } else {
-          coforall chunk in 0..#numChunks { // make sure coforall on can trigger
-            local do on here.getChild(chunk) {
-              if debugDataParNuma {
-                if chunk!=chpl_getSubloc() then
-                  chpl_debug_writeln("*** ERROR: ON WRONG SUBLOC (should be ", chunk,
-                                     ", on ", chpl_getSubloc(), ") ***");
-              }
-              // Divide the locale's tasks approximately evenly
-              // among the sublocales
-              const numSublocTasks = (if chunk < dptpl % numChunks
-                                      then dptpl / numChunks + 1
-                                      else dptpl / numChunks);
-              var locBlock: rank*range(intIdxType);
+              locBlock(i) = offset(i)..#(ranges(i).size);
+            var followMe: rank*range(intIdxType) = locBlock;
+            const (lo,hi) = _computeBlock(locBlock(parDim).size,
+                                          numChunks, chunk,
+                                          locBlock(parDim)._high,
+                                          locBlock(parDim)._low,
+                                          locBlock(parDim)._low);
+            followMe(parDim) = lo..hi;
+            const (numChunks2, parDim2) = _computeChunkStuff(numSublocTasks,
+                                                             ignoreRunning=true,
+                                                             minIndicesPerTask,
+                                                             followMe);
+            coforall chunk2 in 0..#numChunks2 {
+              var locBlock2: rank*range(intIdxType);
               for param i in 0..rank-1 do
-                locBlock(i) = offset(i)..#(ranges(i).size);
-              var followMe: rank*range(intIdxType) = locBlock;
-              const (lo,hi) = _computeBlock(locBlock(parDim).size,
-                                            numChunks, chunk,
-                                            locBlock(parDim)._high,
-                                            locBlock(parDim)._low,
-                                            locBlock(parDim)._low);
-              followMe(parDim) = lo..hi;
-              const (numChunks2, parDim2) = _computeChunkStuff(numSublocTasks,
-                                                               ignoreRunning=true,
-                                                               minIndicesPerTask,
-                                                               followMe);
-              coforall chunk2 in 0..#numChunks2 {
-                var locBlock2: rank*range(intIdxType);
-                for param i in 0..rank-1 do
-                  locBlock2(i) = followMe(i).low..followMe(i).high;
-                var followMe2: rank*range(intIdxType) = locBlock2;
-                const low  = locBlock2(parDim2)._low,
-                  high = locBlock2(parDim2)._high;
-                const (lo,hi) = _computeBlock(locBlock2(parDim2).size,
-                                              numChunks2, chunk2,
-                                              high, low, low);
-                followMe2(parDim2) = lo..hi;
-                if debugDataParNuma {
-                  chpl_debug_writeln("### chunk = ", chunk, "  chunk2 = ", chunk2, "  ",
-                          "followMe = ", followMe, "  followMe2 = ", followMe2);
-                }
-                yield followMe2;
+                locBlock2(i) = followMe(i).low..followMe(i).high;
+              var followMe2: rank*range(intIdxType) = locBlock2;
+              const low  = locBlock2(parDim2)._low,
+                high = locBlock2(parDim2)._high;
+              const (lo,hi) = _computeBlock(locBlock2(parDim2).size,
+                                            numChunks2, chunk2,
+                                            high, low, low);
+              followMe2(parDim2) = lo..hi;
+              if debugDataParNuma {
+                chpl_debug_writeln("### chunk = ", chunk, "  chunk2 = ", chunk2, "  ",
+                        "followMe = ", followMe, "  followMe2 = ", followMe2);
               }
+              yield followMe2;
             }
           }
         }
@@ -452,7 +442,7 @@ module DefaultRectangular {
                   "), minIndicesPerTask=", minIndicesPerTask);
 
         const (numChunks, parDim) = if __primitive("task_get_serial") then
-                                    (1, -1) else
+                                    (1, 0) else
                                     _computeChunkStuff(numTasks,
                                                        ignoreRunning,
                                                        minIndicesPerTask,
@@ -469,37 +459,27 @@ module DefaultRectangular {
                   "### nranges = ", ranges);
         }
 
-        if numChunks == 1 {
-          if rank == 1 {
-            yield (offset(0)..#ranges(0).size,);
-          } else {
-            var block: rank*range(intIdxType);
-            for param i in 0..rank-1 do
-              block(i) = offset(i)..#ranges(i).size;
-            yield block;
-          }
-        } else {
-          var locBlock: rank*range(intIdxType);
-          for param i in 0..rank-1 do
-            locBlock(i) = offset(i)..#(ranges(i).size);
+        var locBlock: rank*range(intIdxType);
+        for param i in 0..rank-1 do
+          locBlock(i) = offset(i)..#(ranges(i).size);
+        if debugDefaultDist then
+          chpl_debug_writeln("*** DI: locBlock = ", locBlock);
+        coforall chunk in 0..#numChunks {
+          var followMe: rank*range(intIdxType) = locBlock;
+          const (lo,hi) = _computeBlock(locBlock(parDim).size,
+                                        numChunks, chunk,
+                                        locBlock(parDim)._high,
+                                        locBlock(parDim)._low,
+                                        locBlock(parDim)._low);
+          followMe(parDim) = lo..hi;
           if debugDefaultDist then
-            chpl_debug_writeln("*** DI: locBlock = ", locBlock);
-          coforall chunk in 0..#numChunks {
-            var followMe: rank*range(intIdxType) = locBlock;
-            const (lo,hi) = _computeBlock(locBlock(parDim).size,
-                                          numChunks, chunk,
-                                          locBlock(parDim)._high,
-                                          locBlock(parDim)._low,
-                                          locBlock(parDim)._low);
-            followMe(parDim) = lo..hi;
-            if debugDefaultDist then
-              chpl_debug_writeln("*** DI[", chunk, "]: followMe = ", followMe);
-            yield followMe;
-          }
+            chpl_debug_writeln("*** DI[", chunk, "]: followMe = ", followMe);
+          yield followMe;
         }
       }
     }
 
+    pragma "order independent yielding loops"
     iter these(param tag: iterKind, followThis,
                tasksPerLocale = dataParTasksPerLocale,
                ignoreRunning = dataParIgnoreRunningTasks,
@@ -724,6 +704,7 @@ module DefaultRectangular {
       }
     }
 
+    pragma "order independent yielding loops"
     iter dsiLocalSubdomains(loc: locale) {
       yield dsiLocalSubdomain(loc);
     }
@@ -1146,6 +1127,7 @@ module DefaultRectangular {
       for elem in chpl__serialViewIter(this, dom) do yield elem;
     }
 
+    pragma "order independent yielding loops"
     iter these(param tag: iterKind,
                tasksPerLocale = dataParTasksPerLocale,
                ignoreRunning = dataParIgnoreRunningTasks,
@@ -1175,6 +1157,7 @@ module DefaultRectangular {
         yield followThis;
     }
 
+    pragma "order independent yielding loops"
     iter these(param tag: iterKind, followThis,
                tasksPerLocale = dataParTasksPerLocale,
                ignoreRunning = dataParIgnoreRunningTasks,
@@ -1545,11 +1528,13 @@ module DefaultRectangular {
       }
     }
 
+    pragma "order independent yielding loops"
     iter dsiLocalSubdomains(loc: locale) {
       yield dsiLocalSubdomain(loc);
     }
   }
 
+  pragma "order independent yielding loops"
   iter chpl__serialViewIter(arr, viewDom) ref
     where chpl__isDROrDRView(arr) {
     param useCache = chpl__isArrayView(arr) && arr.shouldUseIndexCache();
@@ -1608,6 +1593,7 @@ module DefaultRectangular {
     for elem in chpl__serialViewIterHelper(arr, viewDom) do yield elem;
   }
 
+  pragma "order independent yielding loops"
   iter chpl__serialViewIterHelper(arr, viewDom) ref {
     for i in viewDom {
       const dataIdx = if arr.isReindexArrayView() then chpl_reindexConvertIdx(i, arr.dom, arr.downdom)
@@ -1956,29 +1942,79 @@ module DefaultRectangular {
 
     const Aidx = A.getDataIndex(Alo);
     const Adata = _ddata_shift(A.eltType, A.theData, Aidx);
+    const Alocid = Adata.locale.id;
     const Bidx = B.getDataIndex(Blo);
     const Bdata = _ddata_shift(B.eltType, B.theData, Bidx);
-    _simpleTransferHelper(A, B, Adata, Bdata, len);
+    const Blocid = Bdata.locale.id;
+
+    type t = A.eltType;
+    const elemsizeInBytes = if isNumericType(t) then numBytes(t)
+                            else c_sizeof(t).safeCast(int);
+
+    // we parallelize the assignment if
+    // 1. the size is above threshold
+    // 2. we are either not doing communication or doing a PUT
+    // See: https://github.com/Cray/chapel-private/issues/1365
+    const isSizeAboveThreshold = len:int*elemsizeInBytes >= parallelAssignThreshold;
+    const isFullyLocal = Alocid == Blocid;
+    var doParallelAssign = isSizeAboveThreshold && isFullyLocal;
+
+    if enableParallelGetsInAssignment || enableParallelPutsInAssignment {
+      if isSizeAboveThreshold && !isFullyLocal {
+        if enableParallelPutsInAssignment && Blocid == here.id {
+          doParallelAssign = true;
+        }
+        else if enableParallelGetsInAssignment && Blocid != here.id {
+          doParallelAssign = true;
+        }
+      }
+    }
+
+    if doParallelAssign {
+      _simpleParallelTransferHelper(A, B, Adata, Bdata, Alocid, Blocid, len);
+    }
+    else{
+      _simpleTransferHelper(A, B, Adata, Bdata, Alocid, Blocid, len);
+    }
   }
 
-  private proc _simpleTransferHelper(A, B, Adata, Bdata, len) {
+  private proc _simpleParallelTransferHelper(A, B, Adata, Bdata, Alocid, Blocid, len) {
+    const numTasks = if __primitive("task_get_serial") then 1
+                        else _computeNumChunks(len);
+    const lenPerTask = len:int/numTasks;
+
+    if debugDefaultDistBulkTransfer && numTasks > 1 then
+      chpl_debug_writeln("\tWill do parallel transfer with ", numTasks, " tasks");
+
+    coforall tid in 0..#numTasks {
+      const myOffset = tid*lenPerTask;
+      const myLen = if tid == numTasks-1 then len:int-myOffset else lenPerTask;
+
+      _simpleTransferHelper(A, B, Adata, Bdata, Alocid, Blocid, myLen, myOffset);
+    }
+  }
+
+  private proc _simpleTransferHelper(A, B, Adata, Bdata, Alocid, Blocid, len, offset=0) {
     if Adata == Bdata then return;
 
     // NOTE: This does not work with --heterogeneous, but heterogeneous
     // compilation does not work right now.  The calls to chpl_comm_get
     // and chpl_comm_put should be changed once that is fixed.
-    if Adata.locale.id==here.id {
+    if Alocid==here.id {
       if debugDefaultDistBulkTransfer then
-        chpl_debug_writeln("\tlocal get() from ", B.locale.id);
-      __primitive("chpl_comm_array_get", Adata[0], Bdata.locale.id, Bdata[0], len);
-    } else if Bdata.locale.id==here.id {
+        chpl_debug_writeln("\tlocal get() from ", Blocid);
+      __primitive("chpl_comm_array_get", Adata[offset], Blocid,
+                  Bdata[offset], len);
+    } else if Blocid==here.id {
       if debugDefaultDistBulkTransfer then
-        chpl_debug_writeln("\tlocal put() to ", A.locale.id);
-      __primitive("chpl_comm_array_put", Bdata[0], Adata.locale.id, Adata[0], len);
+        chpl_debug_writeln("\tlocal put() to ", Alocid);
+      __primitive("chpl_comm_array_put", Bdata[offset], Alocid,
+                  Adata[offset], len);
     } else on Adata.locale {
       if debugDefaultDistBulkTransfer then
-        chpl_debug_writeln("\tremote get() on ", here.id, " from ", B.locale.id);
-      __primitive("chpl_comm_array_get", Adata[0], Bdata.locale.id, Bdata[0], len);
+        chpl_debug_writeln("\tremote get() on ", here.id, " from ", Blocid);
+      __primitive("chpl_comm_array_get", Adata[offset], Blocid,
+                  Bdata[offset], len);
     }
   }
 
@@ -2228,6 +2264,30 @@ module DefaultRectangular {
     return res;
   }
 
+  // A helper routine that will perform a pointer swap on an array
+  // instead of doing a deep copy of that array. Returns true
+  // if used the optimized swap, false otherwise
+  proc DefaultRectangularArr.doiOptimizedSwap(other) {
+   // Get shape of array
+    var size1: rank*(this.dom.ranges(0).intIdxType);
+    for (i, r) in zip(0..#this.dom.ranges.size, this.dom.ranges) do
+      size1(i) = r.size;
+
+    // Get shape of array
+    var size2: rank*(other.dom.ranges(0).intIdxType);
+    for (i, r) in zip(0..#other.dom.ranges.size, other.dom.ranges) do
+      size2(i) = r.size;
+    
+    if(this.locale == other.locale &&
+       size1 == size2) {
+      this.data <=> other.data;
+      this.initShiftedData();
+      other.initShiftedData();
+      return true;
+    }
+    return false;
+  }
+
   // A helper routine to take the first parallel scan over a vector
   // yielding the number of tasks used, the ranges computed by each
   // task, and the scanned results of each task's scan.  This is
@@ -2248,17 +2308,7 @@ module DefaultRectangular {
     var state: [rngs.indices] resType;
 
     // Take first pass over data doing per-chunk scans
-
-    // optimize for the single-task case
-    if numTasks == 1 {
-      preScanChunk(rngs.indices.low);
-    } else {
-      coforall tid in rngs.indices {
-        preScanChunk(tid);
-      }
-    }
-
-    proc preScanChunk(tid) {
+    coforall tid in rngs.indices {
       const current: resType;
       const myop = op.clone();
       for i in rngs[tid] {
@@ -2269,6 +2319,7 @@ module DefaultRectangular {
       state[tid] = res[rngs[tid].high];
       delete myop;
     }
+
     if debugDRScan {
       writeln("res = ", res);
       writeln("state = ", state);
@@ -2293,16 +2344,7 @@ module DefaultRectangular {
   // tasks.  This is broken out into a helper function in order to be
   // made use of by distributed array scans.
   proc DefaultRectangularArr.chpl__postScan(op, res, numTasks, rngs, state) {
-    // optimize for the single-task case
-    if numTasks == 1 {
-      postScanChunk(rngs.indices.low);
-    } else {
-      coforall tid in rngs.indices {
-        postScanChunk(tid);
-      }
-    }
-
-    proc postScanChunk(tid) {
+    coforall tid in rngs.indices {
       const myadjust = state[tid];
       for i in rngs[tid] {
         op.accumulateOntoState(res[i], myadjust);
