@@ -2133,6 +2133,23 @@ GenRet codegenAnd(GenRet a, GenRet b)
   }
   return ret;
 }
+static GenRet codegenSqrtExpr(GenRet a)
+{
+  GenInfo* info = gGenInfo;
+  GenRet ret;
+  if (a.chplType && a.chplType->symbol->isRefOrWideRef()) a = codegenDeref(a);
+  GenRet av = codegenValue(a);
+  if (info->cfile) {
+    ret.c = "sqrt(" + av.c + ")";
+  } else {
+#ifdef HAVE_LLVM
+    llvm::ArrayRef<llvm::Value*> args(av.val);
+    llvm::ArrayRef<llvm::Type*> types(av.val->getType());
+    ret.val = info->irBuilder->CreateIntrinsic(llvm::Intrinsic::sqrt, types, args);
+#endif
+  }
+  return ret;
+}
 
 static
 GenRet codegenOr(GenRet a, GenRet b)
@@ -4886,6 +4903,10 @@ DEFINE_PRIM(XOR_ASSIGN) {
 }
 DEFINE_PRIM(POW) {
     ret = codegenCallExpr("pow", call->get(1), call->get(2));
+}
+
+DEFINE_PRIM(SQRT) {
+    ret = codegenSqrtExpr(call->get(1));
 }
 
 DEFINE_PRIM(MIN) {

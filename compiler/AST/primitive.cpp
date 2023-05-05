@@ -755,6 +755,7 @@ initPrimitive() {
   prim_def(PRIM_OR, "|", returnInfoFirstDeref);
   prim_def(PRIM_XOR, "^", returnInfoFirstDeref);
   prim_def(PRIM_POW, "**", returnInfoNumericUp);
+  prim_def(PRIM_SQRT, "square root 64", returnInfoReal64);
 
   // dst, src. PRIM_ASSIGN with reference dst sets *dst
   prim_def(PRIM_ASSIGN, "=", returnInfoVoid, true);

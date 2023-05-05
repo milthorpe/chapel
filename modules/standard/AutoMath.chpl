@@ -2268,7 +2268,9 @@ module AutoMath {
   */
   pragma "fn synchronization free"
   pragma "codegen for CPU and GPU"
-  extern proc sqrt(x: real(64)): real(64);
+  inline proc sqrt(x: real(64)): real(64) {
+    return __primitive("square root 64", x);
+  }
 
   /* Returns the square root of the argument `x`.
 
