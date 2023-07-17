@@ -476,6 +476,8 @@ CallResolutionResult resolvePrimCall(Context* context,
     case PRIM_UNARY_PLUS:
     case PRIM_UNARY_NOT:
     case PRIM_SQRT:
+    case PRIM_SIN:
+    case PRIM_COS:
     case PRIM_ADD:
     case PRIM_SUBTRACT:
     case PRIM_MULT:

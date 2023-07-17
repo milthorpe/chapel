@@ -899,7 +899,7 @@ module AutoMath {
     pragma "fn synchronization free"
     pragma "codegen for CPU and GPU"
     extern proc cos(x: real(64)): real(64);
-    return cos(x);
+    return __primitive("cos 64", x);
   }
 
   // When removing this deprecated function, be sure to remove chpl_cos and
@@ -2135,7 +2135,7 @@ module AutoMath {
     pragma "fn synchronization free"
     pragma "codegen for CPU and GPU"
     extern proc sin(x: real(64)): real(64);
-    return sin(x);
+    return __primitive("sin 64", x);
   }
 
   // When removing this deprecated function, be sure to remove chpl_sin and
