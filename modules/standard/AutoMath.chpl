@@ -201,7 +201,15 @@ module AutoMath {
 
   pragma "fn synchronization free"
   pragma "codegen for CPU and GPU"
-  private extern proc fabs(x: real(64)): real(64);
+  inline proc fabs(x: real(64)): real(64) {
+    return __primitive("abs 64", x);
+  }
+
+  pragma "fn synchronization free"
+  pragma "codegen for CPU and GPU"
+  inline proc fabsf(x: real(32)): real(32) {
+    return __primitive("abs 32", x);
+  }
 
 
   //
@@ -237,9 +245,6 @@ module AutoMath {
 
   /* Returns the magnitude of the real argument `x`. */
   inline proc abs(x : real(32)): real(32) {
-    pragma "fn synchronization free"
-    pragma "codegen for CPU and GPU"
-    extern proc fabsf(x: real(32)): real(32);
     return fabsf(x);
   }
 
@@ -248,9 +253,6 @@ module AutoMath {
 
   /* Returns the real magnitude of the imaginary argument `im`. */
   inline proc abs(im: imag(32)): real(32) {
-    pragma "fn synchronization free"
-    pragma "codegen for CPU and GPU"
-    extern proc fabsf(x: real(32)): real(32);
     return fabsf(_i2r(im));
   }
 
@@ -899,7 +901,7 @@ module AutoMath {
     pragma "fn synchronization free"
     pragma "codegen for CPU and GPU"
     extern proc cos(x: real(64)): real(64);
-    return __primitive("cos 64", x);
+    return cos(x);
   }
 
   // When removing this deprecated function, be sure to remove chpl_cos and
@@ -2135,7 +2137,7 @@ module AutoMath {
     pragma "fn synchronization free"
     pragma "codegen for CPU and GPU"
     extern proc sin(x: real(64)): real(64);
-    return __primitive("sin 64", x);
+    return sin(x);
   }
 
   // When removing this deprecated function, be sure to remove chpl_sin and
@@ -2276,11 +2278,10 @@ module AutoMath {
 
      It is an error if  `x` is less than zero.
   */
-  inline proc sqrt(x : real(32)): real(32) {
-    pragma "fn synchronization free"
-    pragma "codegen for CPU and GPU"
-    extern proc sqrtf(x: real(32)): real(32);
-    return sqrtf(x);
+  pragma "fn synchronization free"
+  pragma "codegen for CPU and GPU"
+  inline proc sqrt(x: real(32)): real(32) {
+    return __primitive("square root 32", x);
   }
 
   /* Returns the square root of the argument `z`. */

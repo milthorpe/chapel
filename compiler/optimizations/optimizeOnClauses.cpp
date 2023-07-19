@@ -105,9 +105,10 @@ classifyPrimitive(CallExpr *call) {
   case PRIM_UNARY_PLUS:
   case PRIM_UNARY_NOT:
   case PRIM_UNARY_LNOT:
+  case PRIM_ABS32:
+  case PRIM_ABS:
+  case PRIM_SQRT32:
   case PRIM_SQRT:
-  case PRIM_SIN:
-  case PRIM_COS:
   case PRIM_ADD:
   case PRIM_SUBTRACT:
   case PRIM_MULT:

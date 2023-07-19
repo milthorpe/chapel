@@ -2134,6 +2134,22 @@ GenRet codegenAnd(GenRet a, GenRet b)
   return ret;
 }
 
+static GenRet codegenAbsExpr(GenRet a)
+{
+  GenInfo* info = gGenInfo;
+  GenRet ret;
+  if (a.chplType && a.chplType->symbol->isRefOrWideRef()) a = codegenDeref(a);
+  GenRet av = codegenValue(a);
+  if (info->cfile) {
+    ret.c = "abs(" + av.c + ")";
+  } else {
+#ifdef HAVE_LLVM
+    ret.val = info->irBuilder->CreateIntrinsic(llvm::Intrinsic::fabs, {av.val->getType()}, av.val);
+#endif
+  }
+  return ret;
+}
+
 static GenRet codegenSqrtExpr(GenRet a)
 {
   GenInfo* info = gGenInfo;
@@ -2145,38 +2161,6 @@ static GenRet codegenSqrtExpr(GenRet a)
   } else {
 #ifdef HAVE_LLVM
     ret.val = info->irBuilder->CreateIntrinsic(llvm::Intrinsic::sqrt, {av.val->getType()}, av.val);
-#endif
-  }
-  return ret;
-}
-
-static GenRet codegenSinExpr(GenRet a)
-{
-  GenInfo* info = gGenInfo;
-  GenRet ret;
-  if (a.chplType && a.chplType->symbol->isRefOrWideRef()) a = codegenDeref(a);
-  GenRet av = codegenValue(a);
-  if (info->cfile) {
-    ret.c = "sin(" + av.c + ")";
-  } else {
-#ifdef HAVE_LLVM
-    ret.val = info->irBuilder->CreateIntrinsic(llvm::Intrinsic::sin, {av.val->getType()}, av.val);
-#endif
-  }
-  return ret;
-}
-
-static GenRet codegenCosExpr(GenRet a)
-{
-  GenInfo* info = gGenInfo;
-  GenRet ret;
-  if (a.chplType && a.chplType->symbol->isRefOrWideRef()) a = codegenDeref(a);
-  GenRet av = codegenValue(a);
-  if (info->cfile) {
-    ret.c = "sin(" + av.c + ")";
-  } else {
-#ifdef HAVE_LLVM
-    ret.val = info->irBuilder->CreateIntrinsic(llvm::Intrinsic::cos, {av.val->getType()}, av.val);
 #endif
   }
   return ret;
@@ -4935,15 +4919,17 @@ DEFINE_PRIM(XOR_ASSIGN) {
 DEFINE_PRIM(POW) {
     ret = codegenCallExpr("pow", call->get(1), call->get(2));
 }
-
-DEFINE_PRIM(SQRT) {
+DEFINE_PRIM(ABS32) {
+    ret = codegenAbsExpr(call->get(1));
+}
+DEFINE_PRIM(ABS) {
+    ret = codegenAbsExpr(call->get(1));
+}
+DEFINE_PRIM(SQRT32) {
     ret = codegenSqrtExpr(call->get(1));
 }
-DEFINE_PRIM(SIN) {
-    ret = codegenSinExpr(call->get(1));
-}
-DEFINE_PRIM(COS) {
-    ret = codegenCosExpr(call->get(1));
+DEFINE_PRIM(SQRT) {
+    ret = codegenSqrtExpr(call->get(1));
 }
 
 DEFINE_PRIM(MIN) {
