@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2023 Hewlett Packard Enterprise Development LP
+ * Copyright 2021-2024 Hewlett Packard Enterprise Development LP
  * Other additional copyright holders may be indicated within.
  *
  * The entirety of this work is licensed under the Apache License,
@@ -139,27 +139,27 @@ class CanPassResult {
   ~CanPassResult() = default;
 
   /** Returns true if the argument is passable */
-  bool passes() { return !failReason_; }
+  bool passes() const { return !failReason_; }
 
-  PassingFailureReason reason() {
+  PassingFailureReason reason() const {
     CHPL_ASSERT((bool) failReason_);
     return *failReason_;
   }
 
   /** Returns true if passing the argument will require instantiation */
-  bool instantiates() { return instantiates_; }
+  bool instantiates() const { return instantiates_; }
 
   /** Returns true if passing the argument will require promotion */
-  bool promotes() { return promotes_; }
+  bool promotes() const { return promotes_; }
 
   /** Returns true if implicit conversion is required */
-  bool converts() { return conversionKind_ != NONE; }
+  bool converts() const { return conversionKind_ != NONE; }
 
   /** What type of implicit conversion, if any, is needed? */
-  ConversionKind conversionKind() { return conversionKind_; }
+  ConversionKind conversionKind() const { return conversionKind_; }
 
   /** Returns true if an implicit param narrowing conversion is required */
-  bool convertsWithParamNarrowing(){
+  bool convertsWithParamNarrowing() const {
     return conversionKind_ == PARAM_NARROWING;
   }
 
