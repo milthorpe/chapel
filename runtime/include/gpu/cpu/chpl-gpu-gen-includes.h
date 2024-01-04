@@ -97,11 +97,12 @@ static inline void chpl_gpu_force_sync(void) {
   }
 }
 
-static inline long chpl_gpu_mad_wide(int a, int b, long c) {
+static inline uint64_t chpl_gpu_mad_wide(uint32_t a, uint32_t b, uint64_t c) {
   if (!chpl_gpu_no_cpu_mode_warning) {
-    chpl_warning("chpl_gpu_mad was called", 0, 0);
+    chpl_warning("chpl_gpu_mad_wide was called", 0, 0);
   }
-  return (long)a * b + c;
+  // we have no widening mul on CPU, so ensure multiply is performed in 64-bit precision
+  return (uint64_t)a * b + c;
 }
 
 #endif // HAS_GPU_LOCALE

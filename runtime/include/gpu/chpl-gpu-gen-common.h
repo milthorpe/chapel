@@ -138,9 +138,9 @@ __host__ static inline void chpl_gpu_force_sync() {
   chpl_internal_error("chpl_gpu_force_sync called from host");
 }
 
-__host__ static inline long chpl_gpu_mad_wide(int a, int b, long c) {
+__host__ static inline uint64_t chpl_gpu_mad_wide(uint32_t a, uint32_t b, uint64_t c) {
   chpl_internal_error("chpl_gpu_mad_wide called from host");
-  return -1;
+  return 0;
 }
 
 __device__ static inline

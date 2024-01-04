@@ -62,8 +62,8 @@ __device__ static inline void chpl_gpu_force_sync() {
 
 __device__ static inline uint64_t chpl_gpu_mad_wide(uint32_t a, uint32_t b, uint64_t c) {
   // integer fused multiply-add
-  uint64_t d;
-  asm volatile ("mad.wide.s32 %0, %1, %2, %3;" : "=r" (d): "r" (a), "r" (b), "r" (c));
+  long d;
+  asm volatile ("mad.wide.u32 %0, %1, %2, %3;" : "=r" (d): "r" (a), "r" (b), "r" (c));
   return d;
 }
 
