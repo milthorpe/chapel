@@ -97,6 +97,13 @@ static inline void chpl_gpu_force_sync(void) {
   }
 }
 
+static inline long chpl_gpu_mad_wide(int a, int b, long c) {
+  if (!chpl_gpu_no_cpu_mode_warning) {
+    chpl_warning("chpl_gpu_mad was called", 0, 0);
+  }
+  return (long)a * b + c;
+}
+
 #endif // HAS_GPU_LOCALE
 
 #endif // _CHPL_GPU_GEN_INCLUDES_H

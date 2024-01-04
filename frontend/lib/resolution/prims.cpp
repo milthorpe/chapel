@@ -1422,6 +1422,7 @@ CallResolutionResult resolvePrimCall(Context* context,
     case PRIM_GPU_GRIDDIM_X:
     case PRIM_GPU_GRIDDIM_Y:
     case PRIM_GPU_GRIDDIM_Z:
+    case PRIM_GPU_MAD_WIDE:
     case PRIM_GPU_ALLOC_SHARED:
     case PRIM_GPU_SYNC_THREADS:
     case PRIM_GPU_SET_BLOCKSIZE:

@@ -868,18 +868,21 @@ initPrimitive() {
   //
   // Threads can be indexed as a 3-dimensional location within a block,
   // which itself can be indexed as a 3-dimensional location within a grid.
-  prim_def(PRIM_GPU_THREADIDX_X, "gpu threadIdx x", returnInfoInt32, true);
-  prim_def(PRIM_GPU_THREADIDX_Y, "gpu threadIdx y", returnInfoInt32, true);
-  prim_def(PRIM_GPU_THREADIDX_Z, "gpu threadIdx z", returnInfoInt32, true);
-  prim_def(PRIM_GPU_BLOCKIDX_X, "gpu blockIdx x", returnInfoInt32, true);
-  prim_def(PRIM_GPU_BLOCKIDX_Y, "gpu blockIdx y", returnInfoInt32, true);
-  prim_def(PRIM_GPU_BLOCKIDX_Z, "gpu blockIdx z", returnInfoInt32, true);
-  prim_def(PRIM_GPU_BLOCKDIM_X, "gpu blockDim x", returnInfoInt32, true);
-  prim_def(PRIM_GPU_BLOCKDIM_Y, "gpu blockDim y", returnInfoInt32, true);
-  prim_def(PRIM_GPU_BLOCKDIM_Z, "gpu blockDim z", returnInfoInt32, true);
-  prim_def(PRIM_GPU_GRIDDIM_X, "gpu gridDim x", returnInfoInt32, true);
-  prim_def(PRIM_GPU_GRIDDIM_Y, "gpu gridDim y", returnInfoInt32, true);
-  prim_def(PRIM_GPU_GRIDDIM_Z, "gpu gridDim z", returnInfoInt32, true);
+  prim_def(PRIM_GPU_THREADIDX_X, "gpu threadIdx x", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_THREADIDX_Y, "gpu threadIdx y", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_THREADIDX_Z, "gpu threadIdx z", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_BLOCKIDX_X, "gpu blockIdx x", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_BLOCKIDX_Y, "gpu blockIdx y", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_BLOCKIDX_Z, "gpu blockIdx z", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_BLOCKDIM_X, "gpu blockDim x", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_BLOCKDIM_Y, "gpu blockDim y", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_BLOCKDIM_Z, "gpu blockDim z", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_GRIDDIM_X, "gpu gridDim x", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_GRIDDIM_Y, "gpu gridDim y", returnInfoUInt32, true);
+  prim_def(PRIM_GPU_GRIDDIM_Z, "gpu gridDim z", returnInfoUInt32, true);
+
+  // fused integer multiply add, widening to 64-bit
+  prim_def(PRIM_GPU_MAD_WIDE, "gpu mad wide", returnInfoUInt64, true);
 
   prim_def(PRIM_GPU_INIT_KERNEL_CFG, "gpu init kernel cfg", returnInfoCVoidPtr, true);
   prim_def(PRIM_GPU_DEINIT_KERNEL_CFG, "gpu deinit kernel cfg", returnInfoVoid, true);

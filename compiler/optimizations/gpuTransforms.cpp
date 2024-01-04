@@ -868,29 +868,23 @@ void GpuKernel::generateIndexComputation() {
     // we want some of these variables to be 64-bits to be able to avoid
     // overflows in number of threads.
     VarSymbol *varBlockIdxX = generateAssignmentToPrimitive(fn_, "blockIdxX",
-      PRIM_GPU_BLOCKIDX_X, dtInt[INT_SIZE_64]);
+      PRIM_GPU_BLOCKIDX_X, dtUInt[INT_SIZE_32]);
     VarSymbol *varBlockDimX = generateAssignmentToPrimitive(fn_, "blockDimX",
-      PRIM_GPU_BLOCKDIM_X, dtInt[INT_SIZE_32]);
+      PRIM_GPU_BLOCKDIM_X, dtUInt[INT_SIZE_32]);
     VarSymbol *varThreadIdxX = generateAssignmentToPrimitive(fn_, "threadIdxX",
-      PRIM_GPU_THREADIDX_X, dtInt[INT_SIZE_32]);
+      PRIM_GPU_THREADIDX_X, dtUInt[INT_SIZE_64]);
 
     VarSymbol *tempVar = insertNewVarAndDef(fn_->body, "t0",
-      dtInt[INT_SIZE_64]);
+      dtUInt[INT_SIZE_64]);
     CallExpr *c1 = new CallExpr(PRIM_MOVE, tempVar, new CallExpr(
-      PRIM_MULT, varBlockIdxX, varBlockDimX));
+      PRIM_GPU_MAD_WIDE, varBlockIdxX, varBlockDimX, varThreadIdxX));
     fn_->insertAtTail(c1);
-
-    VarSymbol *tempVar1 = insertNewVarAndDef(fn_->body, "t1",
-      dtInt[INT_SIZE_64]);
-    CallExpr *c2 = new CallExpr(PRIM_MOVE, tempVar1, new CallExpr(
-      PRIM_ADD, tempVar, varThreadIdxX));
-    fn_->insertAtTail(c2);
 
     Symbol* startOffset = addKernelArgument(lowerBound);
     VarSymbol* index = insertNewVarAndDef(fn_->body, "chpl_simt_index",
                                           dtInt[INT_SIZE_64]);
     fn_->insertAtTail(new CallExpr(PRIM_MOVE, index, new CallExpr(
-      PRIM_ADD, tempVar1, startOffset)));
+      PRIM_ADD, tempVar, startOffset)));
 
     kernelIndices_.push_back(index);
     copyMap_.put(loopIndex, index);

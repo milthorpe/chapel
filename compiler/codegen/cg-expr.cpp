@@ -5383,6 +5383,17 @@ DEFINE_PRIM(GPU_GRIDDIM_X)   { ret = codegenCallExpr("chpl_gpu_getGridDimX"); }
 DEFINE_PRIM(GPU_GRIDDIM_Y)   { ret = codegenCallExpr("chpl_gpu_getGridDimY"); }
 DEFINE_PRIM(GPU_GRIDDIM_Z)   { ret = codegenCallExpr("chpl_gpu_getGridDimZ"); }
 
+DEFINE_PRIM(GPU_MAD_WIDE) {
+  if(!gCodegenGPU) {
+    return;
+  }
+#ifdef HAVE_LLVM
+  /* Currently LLVM doesn't have intrinsics for integer fused multiply-add,
+     so we must call a function that includes inline assembly. */
+  ret = codegenCallExpr("chpl_gpu_mad_wide", call->get(1), call->get(2), call->get(3));
+#endif
+}
+
 DEFINE_PRIM(GPU_ALLOC_SHARED) {
 #ifdef HAVE_LLVM
   GenInfo* info = gGenInfo;
