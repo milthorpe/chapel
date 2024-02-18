@@ -1859,6 +1859,98 @@ GenRet codegenLogicalAnd(GenRet a, GenRet b)
   return ret;
 }
 
+static GenRet emitSqrtForC(GenRet av) {
+  INT_FATAL("Should not reach here, user facing functions should call the "
+            "appropriate C intrinsic in module code instead");
+  GenRet ret;
+  return ret;
+}
+
+static GenRet emitSqrtForLlvm(GenRet av) {
+  GenRet ret;
+#ifdef HAVE_LLVM
+  GenInfo* info = gGenInfo;
+  INT_ASSERT(av.chplType == dtReal[FLOAT_SIZE_64] ||
+             av.chplType == dtReal[FLOAT_SIZE_32]);
+  auto ty = av.val->getType();
+  INT_ASSERT(ty);
+
+  if (!ty->isFPOrFPVectorTy()) {
+    INT_FATAL("The sqrt primitive can only evaluate floating point types!");
+  }
+
+  // The 'id' is the base intrinsic, and then 'tys' is used to mangle
+  // the name, for example to create 'llvm.fma.64'. Since the types of
+  // all arguments should be the same, we only need one type in 'tys'.
+  auto id = llvm::Intrinsic::sqrt;
+  std::vector<llvm::Type*> tys = { ty };
+  std::vector<llvm::Value*> args = { av.val };
+  ret.val = info->irBuilder->CreateIntrinsic(id, tys, args);
+#endif
+
+  return ret;
+}
+
+static GenRet codegenSqrt(GenRet a) {
+  GenInfo* info = gGenInfo;
+  GenRet ret;
+  if (a.chplType && a.chplType->symbol->isRefOrWideRef()) a = codegenDeref(a);
+  GenRet av = codegenValue(a);
+  if (info->cfile) {
+    ret = emitSqrtForC(av);
+  }
+  else {
+    ret = emitSqrtForLlvm(av);
+  }
+  return ret;
+}
+
+static GenRet emitFabsForC(GenRet av) {
+  INT_FATAL("Should not reach here, user facing functions should call the "
+            "appropriate C intrinsic in module code instead");
+  GenRet ret;
+  return ret;
+}
+
+static GenRet emitFabsForLlvm(GenRet av) {
+  GenRet ret;
+#ifdef HAVE_LLVM
+  GenInfo* info = gGenInfo;
+  INT_ASSERT(av.chplType == dtReal[FLOAT_SIZE_64] ||
+             av.chplType == dtReal[FLOAT_SIZE_32]);
+  auto ty = av.val->getType();
+  INT_ASSERT(ty);
+
+  if (!ty->isFPOrFPVectorTy()) {
+    INT_FATAL("The fabs primitive can only evaluate floating point types!");
+  }
+
+  // The 'id' is the base intrinsic, and then 'tys' is used to mangle
+  // the name, for example to create 'llvm.fma.64'. Since the types of
+  // all arguments should be the same, we only need one type in 'tys'.
+  auto id = llvm::Intrinsic::fabs;
+  std::vector<llvm::Type*> tys = { ty };
+  std::vector<llvm::Value*> args = { av.val };
+  ret.val = info->irBuilder->CreateIntrinsic(id, tys, args);
+#endif
+
+  return ret;
+}
+
+static GenRet codegenFabs(GenRet a) {
+  GenInfo* info = gGenInfo;
+  GenRet ret;
+  if (a.chplType && a.chplType->symbol->isRefOrWideRef()) a = codegenDeref(a);
+  GenRet av = codegenValue(a);
+  if (info->cfile) {
+    ret = emitFabsForC(av);
+  }
+  else {
+    ret = emitFabsForLlvm(av);
+  }
+  return ret;
+}
+
 static
 GenRet codegenAdd(GenRet a, GenRet b)
 {
@@ -4623,10 +4715,10 @@ DEFINE_PRIM(UNARY_LNOT) {
   ret = codegenIsZero(call->get(1));
 }
 DEFINE_PRIM(SQRT) {
-  INT_FATAL(call, "not expecting to codegen primitive sqrt calls");
+  ret = codegenSqrt(call->get(1));
 }
 DEFINE_PRIM(ABS) {
-  INT_FATAL(call, "not expecting to codegen primitive abs calls");
+  ret = codegenFabs(call->get(1));
 }
 DEFINE_PRIM(ADD) {
     ret = codegenAdd(call->get(1), call->get(2));
