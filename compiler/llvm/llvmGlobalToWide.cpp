@@ -46,7 +46,7 @@
 #include "llvm/ADT/Statistic.h"
 
 #include "llvm/IR/Attributes.h"
-#if HAVE_LLVM_VER >= 170
+#if HAVE_LLVM_VER >= 170 && HAVE_LLVM_FULL_VER != 1700
 #include "llvm/IR/AttributeMask.h"
 #endif
 

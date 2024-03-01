@@ -333,7 +333,7 @@ def _validate_rocm_version_impl():
     """Check that the installed ROCM version is >= MIN_REQ_VERSION and <
        MAX_REQ_VERSION"""
     MIN_REQ_VERSION = "4"
-    MAX_REQ_VERSION = "5.5"
+    MAX_REQ_VERSION = "6.0.3"
 
     rocm_version = get_sdk_version()
 

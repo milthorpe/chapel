@@ -40,6 +40,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
+#if HAVE_LLVM_FULL_VER == 1700
+#include "llvm/BinaryFormat/Dwarf.h"
+#endif
+
 /*
 LLVM provides a class called DIBuilder, you pass the LLVM module to this
 class and it will attach the debug information to the LLVM code after the
@@ -171,6 +175,9 @@ llvm::DIType* debug_data::construct_type(Type *type)
         layout.getPointerSizeInBits(ty->getPointerAddressSpace()),
         0, /* alignment */
         chpl::empty,
+#if HAVE_LLVM_FULL_VER == 1700
+        llvm::dwarf::DW_MSPACE_LLVM_none,
+#endif
         name);
 
       myTypeDescriptors[type] = N;
@@ -251,6 +258,9 @@ llvm::DIType* debug_data::construct_type(Type *type)
               layout.getPointerSizeInBits(ty->getPointerAddressSpace()),
               0,
               chpl::empty,
+#if HAVE_LLVM_FULL_VER == 1700
+        llvm::dwarf::DW_MSPACE_LLVM_none,
+#endif
               name);
 
             myTypeDescriptors[type] = N;

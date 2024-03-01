@@ -154,7 +154,7 @@ void chpl_gpu_impl_init(int* num_devices) {
 
 bool chpl_gpu_impl_is_device_ptr(const void* ptr) {
   hipPointerAttribute_t res;
-  hipError_t ret_val = hipPointerGetAttributes(&res, (hipDeviceptr_t)ptr);
+  hipError_t ret_val = hipPointerGetAttributes(&res, ptr);
 
   if (ret_val != hipSuccess) {
     if (ret_val == hipErrorInvalidValue ||
@@ -166,13 +166,16 @@ bool chpl_gpu_impl_is_device_ptr(const void* ptr) {
       ROCM_CALL(ret_val);
     }
   }
-
-  return true;
+#if ROCM_VERSION_MAJOR > 5
+    return !(res.type == hipMemoryTypeUnregistered || res.type == hipMemoryTypeHost);
+#else
+    return true;
+#endif
 }
 
 bool chpl_gpu_impl_is_host_ptr(const void* ptr) {
   hipPointerAttribute_t res;
-  hipError_t ret_val = hipPointerGetAttributes(&res, (hipDeviceptr_t)ptr);
+  hipError_t ret_val = hipPointerGetAttributes(&res, ptr);
 
   if (ret_val != hipSuccess) {
     if (ret_val == hipErrorInvalidValue ||
@@ -185,7 +188,11 @@ bool chpl_gpu_impl_is_host_ptr(const void* ptr) {
     }
   }
   else {
+#if ROCM_VERSION_MAJOR > 5
+    return res.type == hipMemoryTypeUnregistered || res.type == hipMemoryTypeHost;
+#else
     return res.memoryType == hipMemoryTypeHost;
+#endif
   }
 
   return true;

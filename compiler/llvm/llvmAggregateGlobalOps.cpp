@@ -300,7 +300,7 @@ static chpl::optional<int64_t> getPointerOffset(Value *Ptr1,
                                                Value *Ptr2,
                                                const DataLayout &DL) {
   chpl::optional<int64_t> optOffset;
-#if HAVE_LLVM_VER >= 170
+#if HAVE_LLVM_VER >= 170 && HAVE_LLVM_FULL_VER != 1700
   optOffset = Ptr2->getPointerOffsetFrom(Ptr1, DL);
 #elif HAVE_LLVM_VER >= 100
   optOffset = isPointerOffset(Ptr1, Ptr2, DL);

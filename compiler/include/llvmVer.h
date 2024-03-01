@@ -26,6 +26,7 @@
 #include "llvm/Config/llvm-config.h"
 
 #define HAVE_LLVM_VER (LLVM_VERSION_MAJOR*10 + LLVM_VERSION_MINOR)
+#define HAVE_LLVM_FULL_VER (LLVM_VERSION_MAJOR*100 + LLVM_VERSION_MINOR*10 + LLVM_VERSION_PATCH)
 
 #if HAVE_LLVM_VER < 110
 #error LLVM version is too old for this version of Chapel

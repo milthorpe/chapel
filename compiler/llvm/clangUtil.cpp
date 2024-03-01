@@ -62,7 +62,7 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 
-#if HAVE_LLVM_VER >= 170
+#if HAVE_LLVM_VER >= 170 && HAVE_LLVM_FULL_VER != 1700
 #include "llvm/TargetParser/SubtargetFeature.h"
 #else
 #include "llvm/MC/SubtargetFeature.h"
@@ -1960,7 +1960,7 @@ static llvm::TargetOptions getTargetOptions(
   Options.UniqueBasicBlockSectionNames =
       CodeGenOpts.UniqueBasicBlockSectionNames;
   Options.TLSSize = CodeGenOpts.TLSSize;
-#if HAVE_LLVM_VER >= 170
+#if HAVE_LLVM_VER >= 170 && HAVE_LLVM_FULL_VER != 1700
   Options.EmulatedTLS = true;
 #elif HAVE_LLVM_VER >= 160
   Options.ExplicitEmulatedTLS = true;
@@ -1985,7 +1985,7 @@ static llvm::TargetOptions getTargetOptions(
       CodeGenOpts.ValueTrackingVariableLocations;
 #endif
 #endif
-#if HAVE_LLVM_VER >= 170
+#if HAVE_LLVM_VER >= 170 && HAVE_LLVM_FULL_VER != 1700
   Options.XRayFunctionIndex = CodeGenOpts.XRayFunctionIndex;
 #else
   Options.XRayOmitFunctionIndex = CodeGenOpts.XRayOmitFunctionIndex;
