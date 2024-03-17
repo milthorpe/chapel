@@ -167,7 +167,7 @@ bool chpl_gpu_impl_is_device_ptr(const void* ptr) {
     }
   }
 #if ROCM_VERSION_MAJOR > 5
-    return !(res.type == hipMemoryTypeUnregistered || res.type == hipMemoryTypeHost);
+    return res.type != hipMemoryTypeUnregistered;
 #else
     return true;
 #endif
