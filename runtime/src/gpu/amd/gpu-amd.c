@@ -189,7 +189,7 @@ bool chpl_gpu_impl_is_host_ptr(const void* ptr) {
   }
   else {
 #if ROCM_VERSION_MAJOR > 5
-    return res.type == hipMemoryTypeUnregistered || res.type == hipMemoryTypeHost;
+    return res.type == hipMemoryTypeHost;
 #else
     return res.memoryType == hipMemoryTypeHost;
 #endif

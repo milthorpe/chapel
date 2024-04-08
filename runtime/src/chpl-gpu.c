@@ -1036,17 +1036,17 @@ void chpl_gpu_memcpy(c_sublocid_t dst_subloc, void* dst,
     chpl_memmove(dst, src, n);
   }
   else {
-    bool dst_on_host = chpl_gpu_impl_is_host_ptr(dst);
-    bool src_on_host = chpl_gpu_impl_is_host_ptr(src);
+    bool dst_on_device = chpl_gpu_impl_is_device_ptr(dst);
+    bool src_on_device = chpl_gpu_impl_is_device_ptr(src);
 
-    if (!dst_on_host && !src_on_host) {
+    if (dst_on_device && !src_on_device) {
       chpl_gpu_copy_device_to_device(dst_subloc, dst, src_subloc, src, n,
                                      commID, ln, fn);
     }
-    else if (!dst_on_host) {
+    else if (dst_on_device) {
       chpl_gpu_copy_host_to_device(dst_subloc, dst, src, n, commID, ln, fn);
     }
-    else if (!src_on_host) {
+    else if (src_on_device) {
       chpl_gpu_copy_device_to_host(dst, src_subloc, src, n, commID, ln, fn);
     }
     else {
